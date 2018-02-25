@@ -1,10 +1,14 @@
+import copy
+
 from sender_terminal import SenderTerminal
 from receiver_terminal import ReceiverTerminal
 from radio import Radio
 from event import Event
-import copy
-
 import globals
+import numpy.random
+
+numpy.random.seed(0)
+
 
 #initialize model
 radio = Radio()
@@ -22,8 +26,6 @@ globals.now = 0
 globals.events = sorted(globals.events, key=lambda x: x.time)
 
 while True:
-    if globals.now > 10:
-        break;
 
     if len(globals.events) == 0:
         break
@@ -32,6 +34,8 @@ while True:
     events_work = copy.copy(globals.events)
     event = globals.events[0]
     globals.now = event.time
+    if globals.now > 3:
+        break;
 
     for event in events_work:
         if event.time <= globals.now:

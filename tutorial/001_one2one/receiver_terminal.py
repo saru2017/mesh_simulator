@@ -2,7 +2,6 @@ from event import Event
 from packet import Packet
 import sys
 import globals
-from enum import auto
 
 class ReceiverTerminal():
     def __init__(self, val_id, val_mac, val_ip, val_radio):
@@ -21,17 +20,17 @@ class ReceiverTerminal():
 
     def on_receive_packet(self, packet, val_rssi):
         if packet.dst_mac == Packet.bcast_mac or packet.dst_mac == self.mac:
-            print("        mac: on_receive_packet from %s" % (packet.dst_mac))
+            print("        mac: on_receive_packet from %s" % (packet.src_mac))
         else:
-            print("        mac: this is not mine to %s" % (packet.dst_mac))
+            print("        mac: this is not mine to %s" % (packet.src_mac))
 
         if packet.dst_ip == self.ip:
-            print("        net: on_receive_ip_packet from %s" % (packet.dst_ip))
+            print("        net: on_receive_ip_packet from %s" % (packet.src_ip))
             self.total_received_byte += packet.length
             print("        net: total_received_byte is %d" % \
                       (self.total_received_byte))
-            speed = self.total_received_byte * 8 / globals.now / 10**6
-            print("        net: speed = %f Mbps" % (speed))
+            throughput = self.total_received_byte * 8 / globals.now / 10**6
+            print("        net: speed = %f Mbps" % (throughput))
 
 
 
@@ -50,11 +49,8 @@ class ReceiverTerminal():
         elif packet.type == "TYPE_END":
             del self.interference[packet.src_mac]
 
-        print("state = %s" % (self.state))
-        print("packet.dst_mac = %s" % (packet.dst_mac))
-        print("packet.dst_ip = %s" % (packet.dst_ip))
-
         if self.state == "STATE_LISTENING":
+            print("        STATE_LISTENING processing")
             if packet.type == "TYPE_START" and packet.dst_mac == self.mac:
                 max_interference = -92 # -92 is noise floor
                 for key, val in self.interference.items():
@@ -71,8 +67,12 @@ class ReceiverTerminal():
                     self.max_receiving_interference = max_interference
 
         elif self.state == "STATE_RECEIVING":
-            if packet.src_mac == self.receiving_mac:
+            print("        STATE_RECEIVING processing")
+            if packet.src_mac == self.receiving_mac and \
+                    packet.type == "TYPE_END":
+                self.state = "STATE_LISTENING"
                 sinr = val_rssi - self.max_receiving_interference
+
                 print("        sinr = %f" % (sinr))
                 if sinr >= 20.2:
                     self.on_receive_packet(packet, val_rssi)
@@ -85,3 +85,5 @@ class ReceiverTerminal():
         else:
             print("not implemented %s " % (self.state))
             sys.exit()
+
+
