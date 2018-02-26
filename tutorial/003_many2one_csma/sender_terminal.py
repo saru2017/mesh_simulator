@@ -16,8 +16,8 @@ class SenderTerminal():
         self.interference = {}
         self.packet_queue = []
         self.one_lambda = 1.00 #packet sending interval
-        self.target_mac = "00:00:00:00:00:02"
-        self.target_ip  = "192.168.0.2"
+        self.target_mac = "00:00:00:00:00:01"
+        self.target_ip  = "192.168.0.1"
         self.length = 1500
         self.phy_speed = 250 * 1000 # 250 kbps
         self.channel = 1 # for future purpose
@@ -54,6 +54,7 @@ class SenderTerminal():
         globals.events.append(event)
 
 
+
     def startBackoff(self, packet):
         self.sending_packet = packet
         self.state = "STATE_BACKOFF"
@@ -80,29 +81,38 @@ class SenderTerminal():
 
 
     def onTimerBackoff(self):
+        # backoff_counter is remaining
         if self.backoff_counter > 0:
             self.backoff_counter -= 1
             event = Event(globals.now + self.aUnitBackoffPeriod, self.onTimer)
             globals.events.append(event)
-        else:
-            carrier = self.getSurroundingMaxRSSI()
-            if carrier < self.CCA_THR:
-                self.startSending(self.sending_packet)
-            else: # media busy
-                self.NB += 1
-                print("    media busy NB = %d" % (self.NB))
+            return
 
-                if self.NB > self.macMaxCSMABackoffs:
-                    print("    packet drop because of CCA failure")
-                    self.checkRemainingPacket()
-                else:
-                    self.BE += 1
-                    if self.BE > self.macMaxBE:
-                        self.BE = self.macMaxBE
-                    self.backoff_counter = 2**self.BE - 1
-                    event = Event(globals.now + self.aUnitBackoffPeriod,
-                                  self.onTimer)
-                    globals.events.append(event)
+        # channel is clear. start to send a packet
+        carrier = self.getSurroundingMaxRSSI()
+        if carrier < self.CCA_THR:
+            self.startSending(self.sending_packet)
+            return
+
+        # media busy
+        self.NB += 1
+        print("    media busy NB = %d" % (self.NB))
+
+        # media busy continues a while, so drop the packet
+        if self.NB > self.macMaxCSMABackoffs:
+            print("    packet drop because of CCA failure")
+            self.checkRemainingPacket()
+            return
+
+        # exponential backoff
+        self.BE += 1
+        if self.BE > self.macMaxBE:
+            self.BE = self.macMaxBE
+        self.backoff_counter = 2**self.BE - 1
+        event = Event(globals.now + self.aUnitBackoffPeriod,
+                      self.onTimer)
+        globals.events.append(event)
+
 
 
     def onTimerSending(self):
@@ -179,6 +189,7 @@ class SenderTerminal():
             self.interference[packet.src_mac] = val_rssi
         elif packet.type == "TYPE_END":
             del self.interference[packet.src_mac]
+
 
     def getSurroundingMaxRSSI(self):
         max_rssi = -92 # noise floor
