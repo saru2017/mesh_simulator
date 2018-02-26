@@ -12,14 +12,16 @@ numpy.random.seed(0)
 
 #initialize model
 radio = Radio()
-t1 = SenderTerminal("t1", "00:00:00:00:00:01", "192.168.0.1", radio)
-t1.x = 100
-t1.y = 40
+
+t1 = ReceiverTerminal("t1", "00:00:00:00:00:01", "192.168.0.1", radio)
+t1.x = 0
+t1.y = 0
 radio.add_node(t1)
 
-t2 = ReceiverTerminal("t2", "00:00:00:00:00:02", "192.168.0.2", radio)
-t2.x = 100
-t2.y = -40
+t2 = SenderTerminal("t2", "00:00:00:00:00:02", "192.168.0.2", radio)
+t2.x = 350
+t2.y = 0
+t2.one_lambda = 0.01
 radio.add_node(t2)
 
 globals.now = 0
@@ -34,7 +36,7 @@ while True:
     events_work = copy.copy(globals.events)
     event = globals.events[0]
     globals.now = event.time
-    if globals.now > 3:
+    if globals.now > 100:
         break;
 
     for event in events_work:
@@ -43,3 +45,14 @@ while True:
             globals.events.pop(0)
         else:
             break
+
+throughput = t1.total_received_byte * 8 / globals.now / 10**6
+print("throughput = %f Mbps" % (throughput))
+
+for key, value in t1.throughputs.items():
+    print("%s is %d bytes" % (key, value))
+
+
+for key, value in t1.dictIpError.items():
+    print("%s's packets are  %d/%d" % (key, value, t1.dictIpSeq[key]))
+    print("%s's error rate is %f" % (key, value / t1.dictIpSeq[key]))
