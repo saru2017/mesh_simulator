@@ -16,12 +16,14 @@ class ReceiverTerminal():
         self.channel = 1 # for future purpose
         self.receiving_mac = None
         self.throughputs = {}
+        self.dictIpSeq = {}
+        self.dictIpError = {}
 
 
 
-    def on_receive_packet(self, packet, val_rssi):
+    def onReceivePacket(self, packet, val_rssi):
         if packet.dst_mac == Packet.bcast_mac or packet.dst_mac == self.mac:
-            print("        mac: on_receive_packet from %s" % (packet.src_mac))
+            print("        mac: onReceivePacket from %s" % (packet.src_mac))
         else:
             print("        mac: this is not mine to %s" % (packet.src_mac))
 
@@ -38,8 +40,21 @@ class ReceiverTerminal():
             else:
                 self.throughputs[packet.src_ip] = 0
 
+            if packet.src_ip not in self.dictIpSeq:
+                self.dictIpSeq[packet.src_ip] = 0
 
-    def on_receive_radio(self, packet, val_rssi):
+            if packet.src_ip not in self.dictIpError:
+                self.dictIpError[packet.src_ip] = 0
+
+            self.dictIpError[packet.src_ip] += packet.seq - \
+                self.dictIpSeq[packet.src_ip] - 1
+            self.dictIpSeq[packet.src_ip] = packet.seq
+
+
+
+
+
+    def onReceiveRadio(self, packet, val_rssi):
         print("    %0.3f: node %s: on_receive_signal at %0.3f [dBm]" % \
                   (globals.now, self.id, val_rssi))
         print("        packet is from %s: %s" % (packet.src_mac, packet.src_ip))
@@ -56,43 +71,47 @@ class ReceiverTerminal():
             del self.interference[packet.src_mac]
 
         if self.state == "STATE_LISTENING":
-            if packet.type == "TYPE_START" and packet.dst_mac == self.mac:
-                max_interference = -92 # -92 is noise floor
-                for key, val in self.interference.items():
-                    if key == packet.src_mac:
-                        continue
-
-                    if max_interference < val:
-                        max_interference = val
-
-                sinr = val_rssi - max_interference
-                if sinr >= 20.2: #packet detection is succeeded.
-                    self.state = "STATE_RECEIVING"
-                    self.receiving_mac = packet.src_mac
-                    self.max_receiving_interference = max_interference
-                else:
-                    print("        packet_dropped since sinr is %1.3f" % (sinr))
-            else:
-                print("        drop the packet by collision rssi is %3.1f" % (val_rssi))
-
+            self.onReceiveListening(packet, val_rssi)
         elif self.state == "STATE_RECEIVING":
-            if packet.src_mac == self.receiving_mac and \
-                    packet.type == "TYPE_END":
-                self.state = "STATE_LISTENING"
-                sinr = val_rssi - self.max_receiving_interference
-
-                print("        sinr = %f" % (sinr))
-                if sinr >= 20.2:
-                    self.on_receive_packet(packet, val_rssi)
-                else:
-                    print("        packet dropped since sinr is %3.1f" % (sinr))
-                pass
-            else:
-                print("       not receiving packet. rssi is %1.3f" % (val_rssi))
-                if self.max_receiving_interference < val_rssi:
-                    self.max_receiving_interference = val_rssi
+            self.onReceiveReceiving(packet, val_rssi)
         else:
             print("not implemented %s " % (self.state))
             sys.exit()
 
 
+    def onReceiveListening(self, packet, val_rssi):
+        if packet.type == "TYPE_START" and packet.dst_mac == self.mac:
+            max_interference = -92 # -92 is noise floor
+            for key, val in self.interference.items():
+                if key == packet.src_mac:
+                    continue
+
+                if max_interference < val:
+                    max_interference = val
+            sinr = val_rssi - max_interference
+            if sinr >= 20.2: #packet detection is succeeded.
+                self.state = "STATE_RECEIVING"
+                self.receiving_mac = packet.src_mac
+                self.max_receiving_interference = max_interference
+            else:
+                print("        packet_dropped since sinr is %1.3f" % (sinr))
+        else:
+            print("        drop the packet by collision rssi is %3.1f" % (val_rssi))
+
+
+    def onReceiveReceiving(self, packet, val_rssi):
+        if packet.src_mac == self.receiving_mac and \
+                packet.type == "TYPE_END":
+            self.state = "STATE_LISTENING"
+            sinr = val_rssi - self.max_receiving_interference
+
+            print("        sinr = %f" % (sinr))
+            if sinr >= 20.2:
+                self.onReceivePacket(packet, val_rssi)
+            else:
+                print("        packet dropped since sinr is %3.1f" % (sinr))
+            pass
+        else:
+            print("       not receiving packet. rssi is %1.3f" % (val_rssi))
+            if self.max_receiving_interference < val_rssi:
+                self.max_receiving_interference = val_rssi

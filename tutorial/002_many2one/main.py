@@ -12,35 +12,29 @@ numpy.random.seed(0)
 
 #initialize model
 radio = Radio()
-t1 = SenderTerminal("t1", "00:00:00:00:00:01", "192.168.0.1", radio)
-t1.x = 100
-t1.y = 40
-t1.one_lambda = 0.5
+
+t1 = ReceiverTerminal("t1", "00:00:00:00:00:01", "192.168.0.1", radio)
+t1.x = 0
+t1.y = 0
 radio.add_node(t1)
 
+t2 = SenderTerminal("t2", "00:00:00:00:00:02", "192.168.0.2", radio)
+t2.x = 350
+t2.y = 0
+t2.one_lambda = 0.01
+radio.add_node(t2)
+
 t3 = SenderTerminal("t3", "00:00:00:00:00:03", "192.168.0.3", radio)
-t3.x = 100
-t3.y = 40
-t3.one_lambda = 0.5
+t3.x = 350
+t3.y = 0
+t3.one_lambda = 0.01
 radio.add_node(t3)
 
 t4 = SenderTerminal("t4", "00:00:00:00:00:04", "192.168.0.4", radio)
-t4.x = 100
-t4.y = 40
-t4.one_lambda = 0.5
+t4.x = 350
+t4.y = 0
+t4.one_lambda = 0.01
 radio.add_node(t4)
-
-#t5 = SenderTerminal("t5", "00:00:00:00:00:05", "192.168.0.5", radio)
-#t5.x = 100
-#t5.y = 40
-#t5.one_lambda = 0.5
-#radio.add_node(t5)
-
-
-t2 = ReceiverTerminal("t2", "00:00:00:00:00:02", "192.168.0.2", radio)
-t2.x = 100
-t2.y = -40
-radio.add_node(t2)
 
 globals.now = 0
 globals.events = sorted(globals.events, key=lambda x: x.time)
@@ -54,7 +48,7 @@ while True:
     events_work = copy.copy(globals.events)
     event = globals.events[0]
     globals.now = event.time
-    if globals.now > 3:
+    if globals.now > 10:
         break;
 
     for event in events_work:
@@ -64,8 +58,13 @@ while True:
         else:
             break
 
-throughput = t2.total_received_byte * 8 / globals.now / 10**6
+throughput = t1.total_received_byte * 8 / globals.now / 10**6
 print("throughput = %f Mbps" % (throughput))
 
-for key, value in t2.throughputs.items():
+for key, value in t1.throughputs.items():
     print("%s is %d bytes" % (key, value))
+
+
+for key, value in t1.dictIpError.items():
+    print("%s's packets are  %d/%d" % (key, value, t1.dictIpSeq[key]))
+    print("%s's error rate is %f" % (key, value / t1.dictIpSeq[key]))
